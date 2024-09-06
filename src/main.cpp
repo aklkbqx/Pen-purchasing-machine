@@ -17,6 +17,18 @@ const char *WIFI_PASSWORD = "11111111";
 const int coinValidatorPin = 15;
 const int speakerPin = 17;
 
+Servo servo1;
+Servo servo2;
+
+const int servoPin1 = 12;
+const int servoPin2 = 13;
+
+const int LEFT = 0;
+const int RIGHT = 180;
+const int STOP = 90;
+const int DELAY_SERVO1 = 1000;
+const int DELAY_SERVO2 = 1000;
+
 const int buttonGetBluePen = 32;
 const int buttonGetRedPen = 33;
 bool lastState_buttonGetBluePen = false;
@@ -30,19 +42,6 @@ volatile int pens = 0;
 const unsigned long calculationDelay = 500;
 
 const int pricePen = 7;
-
-Servo servoBlue;
-Servo servoRed;
-
-const int servoPin1 = 26;
-const int servoPin2 = 27;
-
-const int LEFT = 0;
-const int RIGHT = 180;
-const int STOP = 90;
-const int DELAY_SERVO1 = 1000;
-const int DELAY_SERVO2 = 1000;
-const int STUCK_THRESHOLD = 100;
 
 void IRAM_ATTR doCounter();
 void updateDisplay();
@@ -104,17 +103,17 @@ void setup()
     updateDisplay();
   }
 
-  servoBlue.attach(servoPin1);
-  servoRed.attach(servoPin2);
+  servo1.attach(servoPin1);
+  servo2.attach(servoPin2);
 
-  servoBlue.write(LEFT);
-  servoRed.write(LEFT);
+  servo1.write(LEFT);
+  servo2.write(LEFT);
   delay(150);
-  servoBlue.write(RIGHT);
-  servoRed.write(RIGHT);
+  servo1.write(RIGHT);
+  servo2.write(RIGHT);
   delay(150);
-  servoBlue.write(STOP);
-  servoRed.write(STOP);
+  servo1.write(STOP);
+  servo2.write(STOP);
 
   pinMode(coinValidatorPin, INPUT_PULLUP);
   pinMode(speakerPin, OUTPUT);
