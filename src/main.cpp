@@ -1,4 +1,6 @@
 #define LINE_TOKEN "BAwPVl5Qq41LhakbJLOsgwCp8bidWP6tJzrf5rBgFzS"
+#define BLYNK_TEMPLATE_ID "TMPL6burwBeTL"
+#define BLYNK_TEMPLATE_NAME "PenPurchasingMachine"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -22,8 +24,12 @@ volatile int pulseCount = 0;
 volatile int pens = 0;
 const unsigned long calculationDelay = 500;
 const int pricePen = 7;
-
-// const int speakerPin = 34;
+int currentBluePen = 6;
+int currentRedPen = 6;
+int bluePenPurchased = 0;
+int redPenPurchased = 0;
+unsigned long previousMillisPen = 0;
+const long intervalPen = 5000;
 
 Servo servo1;
 Servo servo2;
@@ -44,10 +50,9 @@ bool lastState_buttonGetRedPen = false;
 
 void IRAM_ATTR doCounter();
 void updateDisplay();
-// void playSound(bool single);
 void calculateAmount();
 void purchesPen(String PenColor);
-void sendLineNotify(String message);
+void sendLineNotify(String message, String imageUrl = "");
 
 const int countdownTime = 30;
 unsigned long previousMillis = 0;
@@ -60,14 +65,14 @@ void setup()
 
   lcd.setCursor(0, 0);
   lcd.print("System Starting.");
-  delay(1000);
+  delay(100);
   lcd.clear();
 
   lcd.setCursor(1, 0);
   lcd.print("Please Connect");
   lcd.setCursor(5, 1);
   lcd.print("WiFi...");
-  delay(1000);
+  delay(100);
   lcd.clear();
 
   WiFiManager wm;
@@ -82,7 +87,7 @@ void setup()
   lcd.print("WiFi");
   lcd.setCursor(2, 1);
   lcd.print("Connecting..");
-  delay(2000);
+  delay(1000);
 
   wm.setTimeout(30000);
 
@@ -100,18 +105,17 @@ void setup()
   }
   else
   {
-    sendLineNotify("เชื่อมต่อกับเครื่องขายปากกาสำเร็จแล้ว!");
+    // sendLineNotify("เชื่อมต่อกับเครื่องขายปากกาสำเร็จแล้ว! ✅", "https://lh3.googleusercontent.com/proxy/PuikqzwSBdertvKVZSgkEWbpwbt8eB-fZHFc8RXMAozAyvFRFLvS3BVBwzzcYqcNMYo_pGA2PmsBEe0yHYK8ykXZB_1d1Jwi7Le7TYhZn5b-D3mXud9DVVUJ_IIsiEE");
     Serial.println("เชื่อมต่อสำเร็จแล้ว!");
     lcd.clear();
     lcd.setCursor(6, 0);
     lcd.print("WiFi");
     lcd.setCursor(3, 1);
     lcd.print("Connected!");
-    delay(4000);
+    delay(2000);
   }
   pinMode(coinValidatorPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(coinValidatorPin), doCounter, FALLING);
-  // pinMode(speakerPin, OUTPUT);
   pinMode(buttonGetBluePen, INPUT_PULLUP);
   pinMode(buttonGetRedPen, INPUT_PULLUP);
 
@@ -153,6 +157,29 @@ void loop()
     }
   }
 
+  unsigned long currentMillisPen = millis();
+
+  if (currentMillisPen - previousMillisPen >= intervalPen)
+  {
+    if (bluePenPurchased > 0 || redPenPurchased > 0)
+    {
+      String message = "";
+      if (bluePenPurchased > 0)
+      {
+        message += "\n🔵 จำหน่ายปากกาสีน้ำเงิน " + String(bluePenPurchased) + " ด้าม\n";
+      }
+      if (redPenPurchased > 0)
+      {
+        message += "\n🔴 จำหน่ายปากกาสีแดง " + String(redPenPurchased) + " ด้าม";
+      }
+      sendLineNotify(message);
+
+      bluePenPurchased = 0;
+      redPenPurchased = 0;
+    }
+    previousMillisPen = currentMillisPen;
+  }
+
   static unsigned long lastCalculationTime = 0;
   unsigned long currentTime = millis();
 
@@ -162,23 +189,30 @@ void loop()
     lastCalculationTime = currentTime;
   }
 
-  if (digitalRead(buttonGetBluePen) == LOW && !lastState_buttonGetBluePen)
+  if (currentBluePen != 0)
   {
-    lastState_buttonGetBluePen = true;
-    purchesPen("blue");
+    if (digitalRead(buttonGetBluePen) == LOW && !lastState_buttonGetBluePen)
+    {
+      lastState_buttonGetBluePen = true;
+      purchesPen("blue");
+    }
+    if (digitalRead(buttonGetRedPen) == LOW && !lastState_buttonGetRedPen)
+    {
+      lastState_buttonGetRedPen = true;
+      purchesPen("red");
+    }
   }
-  if (digitalRead(buttonGetRedPen) == LOW && !lastState_buttonGetRedPen)
+
+  if (currentRedPen != 0)
   {
-    lastState_buttonGetRedPen = true;
-    purchesPen("red");
-  }
-  if (digitalRead(buttonGetBluePen) == HIGH)
-  {
-    lastState_buttonGetBluePen = false;
-  }
-  if (digitalRead(buttonGetRedPen) == HIGH)
-  {
-    lastState_buttonGetRedPen = false;
+    if (digitalRead(buttonGetBluePen) == HIGH)
+    {
+      lastState_buttonGetBluePen = false;
+    }
+    if (digitalRead(buttonGetRedPen) == HIGH)
+    {
+      lastState_buttonGetRedPen = false;
+    }
   }
 }
 
@@ -210,27 +244,6 @@ void updateDisplay()
   }
   delay(100);
 }
-
-// void playSound(bool single)
-// {
-//   if (!single)
-//   {
-//     tone(speakerPin, 1000);
-//     delay(500);
-//     noTone(speakerPin);
-//     delay(500);
-//   }
-//   else
-//   {
-//     for (int i = 0; i < 3; i++)
-//     {
-//       tone(speakerPin, 1000);
-//       delay(100);
-//       noTone(speakerPin);
-//       delay(100);
-//     }
-//   }
-// }
 
 void calculateAmount()
 {
@@ -270,11 +283,6 @@ void calculateAmount()
     {
       pens = totalAmount / pricePen;
       Serial.print("จำนวน pens: " + String(pens));
-      // playSound(true);
-    }
-    else
-    {
-      // playSound(false);
     }
 
     pulseCount = 0;
@@ -288,25 +296,57 @@ void purchesPen(String PenColor)
   if (pens >= 1)
   {
     Serial.print("purches Pen!");
-    // playSound(true);
 
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("You have success");
     lcd.setCursor(0, 1);
     lcd.print("Purchased 1 pen!");
-    delay(2000);
+    delay(100);
 
     pens -= 1;
     totalAmount -= pricePen;
-    updateDisplay();
 
-    // if (PenColor == "red")
-    // {
-    // }
-    // else if (PenColor == "blue")
-    // {
-    // }
+    if (PenColor == "blue")
+    {
+      bluePenPurchased += 1;
+      currentBluePen -= 1;
+      if (currentBluePen <= 5)
+      {
+        sendLineNotify("\n🔵 ปากกาสีน้ำเงินใกล้จะหมดแล้ว\n\nจำนวนที่เหลือ: " + String(currentBluePen) + " ด้าม");
+      }
+      if (currentBluePen == 0)
+      {
+        sendLineNotify("\n🔵 ปากกาสีน้ำเงินหมดแล้ว\n\nกรุณาเติมปากกา!!");
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Can't buy a Pen");
+        lcd.setCursor(0, 1);
+        lcd.print("Please refill it");
+        delay(2000);
+      }
+    }
+    else if (PenColor == "red")
+    {
+      redPenPurchased += 1;
+      currentRedPen -= 1;
+      if (currentRedPen <= 5)
+      {
+        sendLineNotify("\n🔴 ปากกาสีแดงใกล้จะหมดแล้ว\n\nจำนวนที่เหลือ: " + String(currentRedPen) + " ด้าม");
+      }
+      if (currentRedPen == 0)
+      {
+        sendLineNotify("\n🔴 ปากกาสีแดงหมดแล้ว\n\nกรุณาเติมปากกา!!");
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Can't buy a Pen");
+        lcd.setCursor(0, 1);
+        lcd.print("Please refill it");
+        delay(2000);
+      }
+    }
+    previousMillisPen = millis();
+    updateDisplay();
   }
   else
   {
@@ -319,7 +359,8 @@ void purchesPen(String PenColor)
     updateDisplay();
   }
 }
-void sendLineNotify(String message)
+
+void sendLineNotify(String message, String imageUrl)
 {
   HTTPClient http;
   http.begin("https://notify-api.line.me/api/notify");
@@ -327,6 +368,10 @@ void sendLineNotify(String message)
   http.addHeader("Authorization", "Bearer " + String(LINE_TOKEN));
 
   String httpRequestData = "message=" + message;
+  if (imageUrl != "")
+  {
+    httpRequestData += "&imageThumbnail=" + imageUrl + "&imageFullsize=" + imageUrl;
+  }
   int httpResponseCode = http.POST(httpRequestData);
 
   if (httpResponseCode > 0)
