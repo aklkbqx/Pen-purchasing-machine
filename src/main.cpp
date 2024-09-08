@@ -1,4 +1,6 @@
 #define LINE_TOKEN "BAwPVl5Qq41LhakbJLOsgwCp8bidWP6tJzrf5rBgFzS"
+
+#define BLYNK_AUTH_TOKEN "vN8aqkSZeKmBAhLfyZfTXUIBeHg16I1n"
 #define BLYNK_TEMPLATE_ID "TMPL6burwBeTL"
 #define BLYNK_TEMPLATE_NAME "PenPurchasingMachine"
 
@@ -9,6 +11,7 @@
 #include <LiquidCrystal.h>
 #include <WiFiManager.h>
 #include <HTTPClient.h>
+#include <BlynkSimpleEsp32.h>
 
 const int rs = 22, en = 21, d4 = 18, d5 = 17, d6 = 16, d7 = 15;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
@@ -53,10 +56,12 @@ void updateDisplay();
 void calculateAmount();
 void purchesPen(String PenColor);
 void sendLineNotify(String message, String imageUrl = "");
+void moveServo(String servoName, int targetDeg, int duration);
 
-const int countdownTime = 30;
-unsigned long previousMillis = 0;
-bool timerIsActive = false;
+WiFiManager wm;
+unsigned long connectStartTime;
+const unsigned long CONNECTION_TIMEOUT = 5000; // 5 seconds
+
 void setup()
 {
   Serial.begin(115200);
@@ -65,17 +70,16 @@ void setup()
 
   lcd.setCursor(0, 0);
   lcd.print("System Starting.");
-  delay(100);
+  delay(500);
   lcd.clear();
 
   lcd.setCursor(1, 0);
   lcd.print("Please Connect");
   lcd.setCursor(5, 1);
   lcd.print("WiFi...");
-  delay(100);
+  delay(1000);
   lcd.clear();
 
-  WiFiManager wm;
   bool res;
 
   IPAddress staticIP(192, 168, 4, 1);
@@ -83,25 +87,29 @@ void setup()
   IPAddress subnet(255, 255, 255, 0);
   wm.setAPStaticIPConfig(staticIP, gateway, subnet);
 
+  lcd.clear();
   lcd.setCursor(6, 0);
   lcd.print("WiFi");
   lcd.setCursor(2, 1);
   lcd.print("Connecting..");
-  delay(1000);
+  connectStartTime = millis();
 
-  wm.setTimeout(30000);
+  wm.setTimeout(5);
 
   if (!wm.autoConnect(WIFI_NAME, WIFI_PASSWORD))
   {
-    Serial.println("Failed to connect");
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("AP Mode Active");
-    lcd.setCursor(0, 1);
-    lcd.print("Connect to WiFi");
-
-    previousMillis = millis();
-    timerIsActive = true;
+    unsigned long elapsedTime = millis() - connectStartTime;
+    if (elapsedTime >= CONNECTION_TIMEOUT)
+    {
+      Serial.println("Failed to connect within 5 seconds");
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("AP Mode Active");
+      lcd.setCursor(0, 1);
+      lcd.print("Connect to WiFi");
+      delay(1000);
+      ESP.restart();
+    }
   }
   else
   {
@@ -112,6 +120,7 @@ void setup()
     lcd.print("WiFi");
     lcd.setCursor(3, 1);
     lcd.print("Connected!");
+    Blynk.config(BLYNK_AUTH_TOKEN);
     delay(2000);
   }
   pinMode(coinValidatorPin, INPUT_PULLUP);
@@ -122,40 +131,41 @@ void setup()
   servo1.attach(servoPin1);
   servo2.attach(servoPin2);
 
-  servo1.write(LEFT);
-  servo2.write(LEFT);
-  delay(150);
-  servo1.write(RIGHT);
-  servo2.write(RIGHT);
-  delay(150);
-  servo1.write(STOP);
-  servo2.write(STOP);
+  moveServo("red", LEFT, 75);
+  moveServo("blue", LEFT, 75);
+
+  moveServo("red", RIGHT, 75);
+  moveServo("blue", RIGHT, 75);
+
+  moveServo("red", STOP, 0);
+  moveServo("blue", STOP, 0);
 
   updateDisplay();
 }
 
 void loop()
 {
-  if (timerIsActive)
-  {
-    unsigned long currentMillis = millis();
-    unsigned long elapsedMillis = currentMillis - previousMillis;
-    int remainingTime = countdownTime - (elapsedMillis / 1000);
+  Blynk.run();
+  // if (timerIsActive)
+  // {
+  //   unsigned long currentMillis = millis();
+  //   unsigned long elapsedMillis = currentMillis - previousMillis;
+  //   int remainingTime = countdownTime - (elapsedMillis / 1000);
 
-    lcd.setCursor(0, 0);
-    lcd.print("AP Mode Active");
-    lcd.setCursor(0, 1);
-    lcd.print("Time left: " + String(remainingTime) + " s");
+  //   lcd.setCursor(0, 0);
+  //   lcd.print("AP Mode Active");
+  //   lcd.setCursor(0, 1);
+  //   lcd.print("Time left: " + String(remainingTime) + " s");
 
-    if (remainingTime <= 0)
-    {
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Restarting...");
-      delay(2000);
-      ESP.restart();
-    }
-  }
+  //   if (remainingTime <= 0)
+  //   {
+  //     lcd.clear();
+  //     lcd.setCursor(0, 0);
+  //     lcd.print("Restarting...");
+  //     delay(2000);
+  //     ESP.restart();
+  //   }
+  // }
 
   unsigned long currentMillisPen = millis();
 
@@ -213,6 +223,48 @@ void loop()
     {
       lastState_buttonGetRedPen = false;
     }
+  }
+}
+
+void moveServo(String servoName, int targetDeg, int duration)
+{
+  Servo *servo = (servoName == "blue") ? &servo1 : &servo2;
+  servo->write(targetDeg);
+  delay(duration);
+}
+
+BLYNK_WRITE(V1)
+{
+  int val = param.asInt();
+  servo1.write(val);
+}
+BLYNK_WRITE(V2)
+{
+  int val = param.asInt();
+  servo2.write(val);
+}
+BLYNK_WRITE(V3)
+{
+  if (param.asInt() == 1)
+  {
+    moveServo("red", LEFT, 150);
+    moveServo("red", RIGHT, 150);
+    delay(200);
+    moveServo("red", LEFT, 960);
+    moveServo("red", LEFT, 960);
+    moveServo("red", STOP, 0);
+  }
+}
+BLYNK_WRITE(V4)
+{
+  if (param.asInt() == 1)
+  {
+    moveServo("blue", LEFT, 150);
+    moveServo("blue", RIGHT, 150);
+    delay(200);
+    moveServo("blue", LEFT, 960);
+    moveServo("blue", LEFT, 960);
+    moveServo("blue", STOP, 0);
   }
 }
 
