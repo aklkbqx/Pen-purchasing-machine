@@ -40,8 +40,8 @@ Servo servo2;
 const int servoPin1 = 25;
 const int servoPin2 = 26;
 
-const int LEFT = 0;
-const int RIGHT = 180;
+const int RIGHT = 0;
+const int LEFT = 180;
 const int STOP = 90;
 const int DELAY_SERVO1 = 1000;
 const int DELAY_SERVO2 = 1000;
@@ -52,13 +52,18 @@ bool lastState_buttonGetBluePen = false;
 bool lastState_buttonGetRedPen = false;
 
 const int relayPin3V = 27;
+bool relayState = false;
 
 void IRAM_ATTR doCounter();
 void updateDisplay();
+void refillDisplay();
 void calculateAmount();
 void purchesPen(String PenColor);
 void sendLineNotify(String message, String imageUrl = "");
 void moveServo(String servoName, int targetDeg, int duration);
+void checkbuttonPurchase();
+void releaseBluePen();
+void releaseRedPen();
 
 WiFiManager wm;
 unsigned long connectStartTime;
@@ -125,28 +130,18 @@ void setup()
     Blynk.config(BLYNK_AUTH_TOKEN);
     delay(2000);
   }
-  pinMode(coinValidatorPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(coinValidatorPin), doCounter, FALLING);
-  pinMode(buttonGetBluePen, INPUT_PULLUP);
-  pinMode(buttonGetRedPen, INPUT_PULLUP);
 
   pinMode(relayPin3V, OUTPUT);
+  digitalWrite(relayPin3V, HIGH);
 
   servo1.attach(servoPin1);
   servo2.attach(servoPin2);
 
-  moveServo("red", LEFT, 75);
-  moveServo("blue", LEFT, 75);
-
-  moveServo("red", RIGHT, 75);
-  moveServo("blue", RIGHT, 75);
-
-  moveServo("red", STOP, 0);
-  moveServo("blue", STOP, 0);
-
+  pinMode(coinValidatorPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(coinValidatorPin), doCounter, FALLING);
+  pinMode(buttonGetBluePen, INPUT_PULLUP);
+  pinMode(buttonGetRedPen, INPUT_PULLUP);
   updateDisplay();
-
-  digitalWrite(relayPin3V, HIGH);
 }
 
 void loop()
@@ -185,31 +180,7 @@ void loop()
     lastCalculationTime = currentTime;
   }
 
-  if (currentBluePen != 0)
-  {
-    if (digitalRead(buttonGetBluePen) == LOW && !lastState_buttonGetBluePen)
-    {
-      lastState_buttonGetBluePen = true;
-      purchesPen("blue");
-    }
-    if (digitalRead(buttonGetRedPen) == LOW && !lastState_buttonGetRedPen)
-    {
-      lastState_buttonGetRedPen = true;
-      purchesPen("red");
-    }
-  }
-
-  if (currentRedPen != 0)
-  {
-    if (digitalRead(buttonGetBluePen) == HIGH)
-    {
-      lastState_buttonGetBluePen = false;
-    }
-    if (digitalRead(buttonGetRedPen) == HIGH)
-    {
-      lastState_buttonGetRedPen = false;
-    }
-  }
+  checkbuttonPurchase();
 
   if (pens > 0)
   {
@@ -221,46 +192,43 @@ void loop()
   }
 }
 
+void checkbuttonPurchase()
+{
+  if (digitalRead(buttonGetBluePen) == LOW && !lastState_buttonGetBluePen)
+  {
+    if (currentBluePen != 0)
+    {
+      lastState_buttonGetBluePen = true;
+      purchesPen("blue");
+    }
+    else
+    {
+      refillDisplay();
+    }
+  }
+  if (digitalRead(buttonGetRedPen) == LOW && !lastState_buttonGetRedPen)
+  {
+    if (currentRedPen != 0)
+    {
+      lastState_buttonGetRedPen = true;
+      purchesPen("red");
+    }
+  }
+  if (digitalRead(buttonGetBluePen) == HIGH)
+  {
+    lastState_buttonGetBluePen = false;
+  }
+  if (digitalRead(buttonGetRedPen) == HIGH)
+  {
+    lastState_buttonGetRedPen = false;
+  }
+}
+
 void moveServo(String servoName, int targetDeg, int duration)
 {
   Servo *servo = (servoName == "blue") ? &servo1 : &servo2;
   servo->write(targetDeg);
   delay(duration);
-}
-
-BLYNK_WRITE(V1)
-{
-  int val = param.asInt();
-  servo1.write(val);
-}
-BLYNK_WRITE(V2)
-{
-  int val = param.asInt();
-  servo2.write(val);
-}
-BLYNK_WRITE(V3)
-{
-  if (param.asInt() == 1)
-  {
-    moveServo("red", LEFT, 150);
-    moveServo("red", RIGHT, 150);
-    delay(200);
-    moveServo("red", LEFT, 960);
-    moveServo("red", LEFT, 960);
-    moveServo("red", STOP, 0);
-  }
-}
-BLYNK_WRITE(V4)
-{
-  if (param.asInt() == 1)
-  {
-    moveServo("blue", LEFT, 150);
-    moveServo("blue", RIGHT, 150);
-    delay(200);
-    moveServo("blue", LEFT, 960);
-    moveServo("blue", LEFT, 960);
-    moveServo("blue", STOP, 0);
-  }
 }
 
 void IRAM_ATTR doCounter()
@@ -290,6 +258,16 @@ void updateDisplay()
     lcd.print("Pens: " + String(pens));
   }
   delay(100);
+}
+
+void refillDisplay()
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Can't buy a Pen");
+  lcd.setCursor(0, 1);
+  lcd.print("Please refill it");
+  delay(2000);
 }
 
 void calculateAmount()
@@ -356,6 +334,7 @@ void purchesPen(String PenColor)
 
     if (PenColor == "blue")
     {
+      releaseBluePen();
       bluePenPurchased += 1;
       currentBluePen -= 1;
       if (currentBluePen <= 5)
@@ -365,16 +344,12 @@ void purchesPen(String PenColor)
       if (currentBluePen == 0)
       {
         sendLineNotify("\n🔵 ปากกาสีน้ำเงินหมดแล้ว\n\nกรุณาเติมปากกา!!");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Can't buy a Pen");
-        lcd.setCursor(0, 1);
-        lcd.print("Please refill it");
-        delay(2000);
+        refillDisplay();
       }
     }
     else if (PenColor == "red")
     {
+      releaseRedPen();
       redPenPurchased += 1;
       currentRedPen -= 1;
       if (currentRedPen <= 5)
@@ -384,12 +359,6 @@ void purchesPen(String PenColor)
       if (currentRedPen == 0)
       {
         sendLineNotify("\n🔴 ปากกาสีแดงหมดแล้ว\n\nกรุณาเติมปากกา!!");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Can't buy a Pen");
-        lcd.setCursor(0, 1);
-        lcd.print("Please refill it");
-        delay(2000);
       }
     }
     previousMillisPen = millis();
@@ -434,4 +403,58 @@ void sendLineNotify(String message, String imageUrl)
     Serial.println(httpResponseCode);
   }
   http.end();
+}
+
+BLYNK_WRITE(V1)
+{
+  int val = param.asInt();
+  servo1.write(val);
+}
+BLYNK_WRITE(V2)
+{
+  int val = param.asInt();
+  servo2.write(val);
+}
+BLYNK_WRITE(V3)
+{
+  if (param.asInt() == 1)
+  {
+    releaseBluePen();
+  }
+}
+BLYNK_WRITE(V4)
+{
+  if (param.asInt() == 1)
+  {
+    releaseRedPen();
+  }
+}
+
+void releaseBluePen()
+{
+  moveServo("blue", LEFT, 200);
+  moveServo("blue", RIGHT, 210);
+  moveServo("blue", STOP, 200);
+  moveServo("blue", RIGHT, 200);
+  moveServo("blue", LEFT, 210);
+  moveServo("blue", STOP, 200);
+
+  moveServo("blue", RIGHT, 954);
+  moveServo("blue", STOP, 200);
+  moveServo("blue", RIGHT, 954);
+  moveServo("blue", STOP, 0);
+}
+void releaseRedPen()
+{
+  moveServo("red", LEFT, 200);
+  moveServo("red", RIGHT, 210);
+  moveServo("red", STOP, 200);
+  moveServo("red", RIGHT, 200);
+  moveServo("red", LEFT, 210);
+  moveServo("red", STOP, 200);
+
+  moveServo("red", RIGHT, 964);
+  moveServo("red", STOP, 200);
+  moveServo("red", RIGHT, 964);
+  moveServo("red", STOP, 0);
 }
