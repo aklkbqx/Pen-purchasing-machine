@@ -51,6 +51,8 @@ const int buttonGetRedPen = 33;
 bool lastState_buttonGetBluePen = false;
 bool lastState_buttonGetRedPen = false;
 
+const int relayPin3V = 27;
+
 void IRAM_ATTR doCounter();
 void updateDisplay();
 void calculateAmount();
@@ -60,7 +62,7 @@ void moveServo(String servoName, int targetDeg, int duration);
 
 WiFiManager wm;
 unsigned long connectStartTime;
-const unsigned long CONNECTION_TIMEOUT = 5000; // 5 seconds
+const unsigned long CONNECTION_TIMEOUT = 5000;
 
 void setup()
 {
@@ -113,7 +115,7 @@ void setup()
   }
   else
   {
-    // sendLineNotify("เชื่อมต่อกับเครื่องขายปากกาสำเร็จแล้ว! ✅", "https://lh3.googleusercontent.com/proxy/PuikqzwSBdertvKVZSgkEWbpwbt8eB-fZHFc8RXMAozAyvFRFLvS3BVBwzzcYqcNMYo_pGA2PmsBEe0yHYK8ykXZB_1d1Jwi7Le7TYhZn5b-D3mXud9DVVUJ_IIsiEE");
+    sendLineNotify("เชื่อมต่อกับเครื่องขายปากกาสำเร็จแล้ว! ✅", "https://lh3.googleusercontent.com/proxy/PuikqzwSBdertvKVZSgkEWbpwbt8eB-fZHFc8RXMAozAyvFRFLvS3BVBwzzcYqcNMYo_pGA2PmsBEe0yHYK8ykXZB_1d1Jwi7Le7TYhZn5b-D3mXud9DVVUJ_IIsiEE");
     Serial.println("เชื่อมต่อสำเร็จแล้ว!");
     lcd.clear();
     lcd.setCursor(6, 0);
@@ -128,6 +130,8 @@ void setup()
   pinMode(buttonGetBluePen, INPUT_PULLUP);
   pinMode(buttonGetRedPen, INPUT_PULLUP);
 
+  pinMode(relayPin3V, OUTPUT);
+
   servo1.attach(servoPin1);
   servo2.attach(servoPin2);
 
@@ -141,31 +145,13 @@ void setup()
   moveServo("blue", STOP, 0);
 
   updateDisplay();
+
+  digitalWrite(relayPin3V, HIGH);
 }
 
 void loop()
 {
   Blynk.run();
-  // if (timerIsActive)
-  // {
-  //   unsigned long currentMillis = millis();
-  //   unsigned long elapsedMillis = currentMillis - previousMillis;
-  //   int remainingTime = countdownTime - (elapsedMillis / 1000);
-
-  //   lcd.setCursor(0, 0);
-  //   lcd.print("AP Mode Active");
-  //   lcd.setCursor(0, 1);
-  //   lcd.print("Time left: " + String(remainingTime) + " s");
-
-  //   if (remainingTime <= 0)
-  //   {
-  //     lcd.clear();
-  //     lcd.setCursor(0, 0);
-  //     lcd.print("Restarting...");
-  //     delay(2000);
-  //     ESP.restart();
-  //   }
-  // }
 
   unsigned long currentMillisPen = millis();
 
@@ -223,6 +209,15 @@ void loop()
     {
       lastState_buttonGetRedPen = false;
     }
+  }
+
+  if (pens > 0)
+  {
+    digitalWrite(relayPin3V, LOW);
+  }
+  else
+  {
+    digitalWrite(relayPin3V, HIGH);
   }
 }
 
@@ -354,7 +349,7 @@ void purchesPen(String PenColor)
     lcd.print("You have success");
     lcd.setCursor(0, 1);
     lcd.print("Purchased 1 pen!");
-    delay(100);
+    delay(50);
 
     pens -= 1;
     totalAmount -= pricePen;
