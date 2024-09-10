@@ -1,5 +1,5 @@
+// กำหนดค่าของ Token และ Template ID สำหรับการเชื่อมต่อกับ LINE Notify และ Blynk
 #define LINE_TOKEN "BAwPVl5Qq41LhakbJLOsgwCp8bidWP6tJzrf5rBgFzS"
-
 #define BLYNK_AUTH_TOKEN "vN8aqkSZeKmBAhLfyZfTXUIBeHg16I1n"
 #define BLYNK_TEMPLATE_ID "TMPL6burwBeTL"
 #define BLYNK_TEMPLATE_NAME "PenPurchasingMachine"
@@ -13,12 +13,17 @@
 #include <HTTPClient.h>
 #include <BlynkSimpleEsp32.h>
 
-const int rs = 22, en = 21, d4 = 18, d5 = 17, d6 = 16, d7 = 15;
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+// รวมไลบรารีต่าง ๆ ที่จำเป็นสำหรับการทำงานของเครื่องขายปากกา
 
+// กำหนดพินสำหรับการเชื่อมต่อกับจอ LCD
+const int rs = 22, en = 21, d4 = 18, d5 = 17, d6 = 16, d7 = 15;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);  // สร้างอ็อบเจ็กต์ LCD
+
+// กำหนดชื่อและรหัสผ่านของ WiFi ที่จะใช้เชื่อมต่อ
 const char *WIFI_NAME = "!PEN PURCHASING MACHINE";
 const char *WIFI_PASSWORD = "11111111";
 
+// กำหนดพินและตัวแปรสำหรับการนับจำนวนเงินที่รับจากเครื่องตรวจเหรียญ
 const int coinValidatorPin = 13;
 volatile int totalAmount = 0;
 volatile unsigned long lastDebounceTime = 0;
@@ -26,14 +31,15 @@ const unsigned long debounceDelay = 200;
 volatile int pulseCount = 0;
 volatile int pens = 0;
 const unsigned long calculationDelay = 500;
-const int pricePen = 7;
+const int pricePen = 7;  // กำหนดราคาปากกา
 int currentBluePen = 6;
 int currentRedPen = 6;
 int bluePenPurchased = 0;
 int redPenPurchased = 0;
 unsigned long previousMillisPen = 0;
-const long intervalPen = 5000;
+const long intervalPen = 5000;  // กำหนดช่วงเวลาในการส่งข้อมูลเกี่ยวกับการขายปากกา
 
+// กำหนดพินและค่าต่าง ๆ สำหรับการควบคุมเซอร์โวมอเตอร์
 Servo servo1;
 Servo servo2;
 
@@ -46,28 +52,34 @@ const int STOP = 90;
 const int DELAY_SERVO1 = 1000;
 const int DELAY_SERVO2 = 1000;
 
+// กำหนดพินสำหรับปุ่มรับปากกาสีน้ำเงินและสีแดง
 const int buttonGetBluePen = 32;
 const int buttonGetRedPen = 33;
 bool lastState_buttonGetBluePen = false;
 bool lastState_buttonGetRedPen = false;
 
+// กำหนดพินสำหรับรีเลย์ที่ควบคุมเครื่องจ่ายเหรียญและระบบตรวจเหรียญ
 const int relayPin3V = 27;
 bool relayState = false;
+const int relayPin12V = 34;
+bool relayCoinValidatorState = false;
 
+// ฟังก์ชันสำหรับการนับเหรียญเมื่อมีเหรียญเข้ามา
 void IRAM_ATTR doCounter();
-void updateDisplay();
-void refillDisplay();
-void calculateAmount();
-void purchesPen(String PenColor);
-void sendLineNotify(String message, String imageUrl = "");
-void moveServo(String servoName, int targetDeg, int duration);
-void checkbuttonPurchase();
-void releaseBluePen();
-void releaseRedPen();
+void updateDisplay();  // ฟังก์ชันอัปเดตหน้าจอแสดงผล
+void refillDisplay();  // ฟังก์ชันแจ้งให้เติมปากกา
+void calculateAmount();  // ฟังก์ชันคำนวณจำนวนเงินจากการนับพัลส์
+void purchasPen(String PenColor);  // ฟังก์ชันจำหน่ายปากกา
+void sendLineNotify(String message, String imageUrl = "");  // ฟังก์ชันส่งแจ้งเตือนไปที่ LINE Notify
+void moveServo(String servoName, int targetDeg, int duration);  // ฟังก์ชันควบคุมการหมุนของเซอร์โวมอเตอร์
+void checkbuttonPurchase();  // ฟังก์ชันตรวจสอบสถานะปุ่ม
+void releaseBluePen();  // ฟังก์ชันจำหน่ายปากกาสีน้ำเงิน
+void releaseRedPen();  // ฟังก์ชันจำหน่ายปากกาสีแดง
 
+// WiFiManager ใช้สำหรับการจัดการ WiFi
 WiFiManager wm;
-unsigned long connectStartTime;
-const unsigned long CONNECTION_TIMEOUT = 5000;
+unsigned long connectStartTime;  // ตัวแปรจับเวลาการเชื่อมต่อ WiFi
+const unsigned long CONNECTION_TIMEOUT = 5000;  // กำหนดเวลาการเชื่อมต่อ WiFi (5 วินาที)
 
 void setup()
 {
@@ -134,13 +146,18 @@ void setup()
   pinMode(relayPin3V, OUTPUT);
   digitalWrite(relayPin3V, HIGH);
 
+  pinMode(relayPin12V, OUTPUT);
+  digitalWrite(relayPin12V, LOW);
+
   servo1.attach(servoPin1);
   servo2.attach(servoPin2);
 
   pinMode(coinValidatorPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(coinValidatorPin), doCounter, FALLING);
+
   pinMode(buttonGetBluePen, INPUT_PULLUP);
   pinMode(buttonGetRedPen, INPUT_PULLUP);
+
   updateDisplay();
 }
 
@@ -148,47 +165,56 @@ void loop()
 {
   Blynk.run();
 
-  unsigned long currentMillisPen = millis();
-
-  if (currentMillisPen - previousMillisPen >= intervalPen)
+  if (!relayCoinValidatorState)
   {
-    if (bluePenPurchased > 0 || redPenPurchased > 0)
+    unsigned long currentMillisPen = millis();
+
+    if (currentMillisPen - previousMillisPen >= intervalPen)
     {
-      String message = "";
-      if (bluePenPurchased > 0)
+      if (bluePenPurchased > 0 || redPenPurchased > 0)
       {
-        message += "\n🔵 จำหน่ายปากกาสีน้ำเงิน " + String(bluePenPurchased) + " ด้าม\n";
-      }
-      if (redPenPurchased > 0)
-      {
-        message += "\n🔴 จำหน่ายปากกาสีแดง " + String(redPenPurchased) + " ด้าม";
-      }
-      sendLineNotify(message);
+        String message = "";
+        if (bluePenPurchased > 0)
+        {
+          message += "\n🔵 จำหน่ายปากกาสีน้ำเงิน " + String(bluePenPurchased) + " ด้าม\n";
+        }
+        if (redPenPurchased > 0)
+        {
+          message += "\n🔴 จำหน่ายปากกาสีแดง " + String(redPenPurchased) + " ด้าม";
+        }
+        sendLineNotify(message);
 
-      bluePenPurchased = 0;
-      redPenPurchased = 0;
+        bluePenPurchased = 0;
+        redPenPurchased = 0;
+      }
+      previousMillisPen = currentMillisPen;
     }
-    previousMillisPen = currentMillisPen;
-  }
 
-  static unsigned long lastCalculationTime = 0;
-  unsigned long currentTime = millis();
+    static unsigned long lastCalculationTime = 0;
+    unsigned long currentTime = millis();
 
-  if (pulseCount > 0 && (currentTime - lastDebounceTime) > calculationDelay)
-  {
-    calculateAmount();
-    lastCalculationTime = currentTime;
-  }
+    if (pulseCount > 0 && (currentTime - lastDebounceTime) > calculationDelay)
+    {
+      calculateAmount();
+      lastCalculationTime = currentTime;
+    }
 
-  checkbuttonPurchase();
+    checkbuttonPurchase();
 
-  if (pens > 0)
-  {
-    digitalWrite(relayPin3V, LOW);
+    if (pens > 0)
+    {
+      digitalWrite(relayPin3V, LOW);
+    }
+    else
+    {
+      digitalWrite(relayPin3V, HIGH);
+    }
   }
   else
   {
-    digitalWrite(relayPin3V, HIGH);
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("System Status: Off");
   }
 }
 
@@ -199,7 +225,7 @@ void checkbuttonPurchase()
     if (currentBluePen != 0)
     {
       lastState_buttonGetBluePen = true;
-      purchesPen("blue");
+      purchasPen("blue");
     }
     else
     {
@@ -211,7 +237,7 @@ void checkbuttonPurchase()
     if (currentRedPen != 0)
     {
       lastState_buttonGetRedPen = true;
-      purchesPen("red");
+      purchasPen("red");
     }
   }
   if (digitalRead(buttonGetBluePen) == HIGH)
@@ -316,7 +342,7 @@ void calculateAmount()
     updateDisplay();
   }
 }
-void purchesPen(String PenColor)
+void purchasPen(String PenColor)
 {
   if (pens >= 1)
   {
@@ -427,6 +453,28 @@ BLYNK_WRITE(V4)
   if (param.asInt() == 1)
   {
     releaseRedPen();
+  }
+}
+BLYNK_WRITE(V5)
+{
+  if (param.asInt() == 1)
+  {
+    if (relayCoinValidatorState)
+    {
+      digitalWrite(relayPin12V, LOW);
+      relayCoinValidatorState = false;
+    }
+    else
+    {
+      digitalWrite(relayPin12V, HIGH);
+      relayCoinValidatorState = true;
+      lcd.clear();
+      lcd.setCursor(5, 0);
+      lcd.print("System");
+      lcd.setCursor(2, 1);
+      lcd.print("Shutting Down.");
+      delay(2000);
+    }
   }
 }
 
