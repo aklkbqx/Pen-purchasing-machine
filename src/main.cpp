@@ -439,9 +439,9 @@ void releaseBluePen()
   moveServo("blue", LEFT, 210);
   moveServo("blue", STOP, 200);
 
-  moveServo("blue", RIGHT, 954);
+  moveServo("blue", RIGHT, 957);
   moveServo("blue", STOP, 200);
-  moveServo("blue", RIGHT, 954);
+  moveServo("blue", RIGHT, 957);
   moveServo("blue", STOP, 0);
 }
 void releaseRedPen()
