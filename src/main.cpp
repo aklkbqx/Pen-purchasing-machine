@@ -4,6 +4,7 @@
 #define BLYNK_TEMPLATE_ID "TMPL6burwBeTL"
 #define BLYNK_TEMPLATE_NAME "PenPurchasingMachine"
 
+// รวมไลบรารีต่าง ๆ ที่จำเป็นสำหรับการทำงานของเครื่องขายปากกา
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESP32Servo.h>
@@ -13,11 +14,9 @@
 #include <HTTPClient.h>
 #include <BlynkSimpleEsp32.h>
 
-// รวมไลบรารีต่าง ๆ ที่จำเป็นสำหรับการทำงานของเครื่องขายปากกา
-
 // กำหนดพินสำหรับการเชื่อมต่อกับจอ LCD
 const int rs = 22, en = 21, d4 = 18, d5 = 17, d6 = 16, d7 = 15;
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);  // สร้างอ็อบเจ็กต์ LCD
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7); // สร้างอ็อบเจ็กต์ LCD
 
 // กำหนดชื่อและรหัสผ่านของ WiFi ที่จะใช้เชื่อมต่อ
 const char *WIFI_NAME = "!PEN PURCHASING MACHINE";
@@ -31,24 +30,29 @@ const unsigned long debounceDelay = 200;
 volatile int pulseCount = 0;
 volatile int pens = 0;
 const unsigned long calculationDelay = 500;
-const int pricePen = 7;  // กำหนดราคาปากกา
-int currentBluePen = 6;
-int currentRedPen = 6;
+const int pricePen = 7; // กำหนดราคาปากกา
+
+// ตัวแปรที่จะกำหนดจำนวนทั้งหมดที่ปากกาใส่ได้
+int amountBluePen = 10;
+int amountRedPen = 10;
 int bluePenPurchased = 0;
 int redPenPurchased = 0;
 unsigned long previousMillisPen = 0;
-const long intervalPen = 5000;  // กำหนดช่วงเวลาในการส่งข้อมูลเกี่ยวกับการขายปากกา
+const long intervalPen = 5000; // กำหนดช่วงเวลาในการส่งข้อมูลเกี่ยวกับการขายปากกา
 
 // กำหนดพินและค่าต่าง ๆ สำหรับการควบคุมเซอร์โวมอเตอร์
 Servo servo1;
 Servo servo2;
 
+// กำหนดขา pin servo
 const int servoPin1 = 25;
 const int servoPin2 = 26;
 
+// ค่าองศาของ Servo
 const int RIGHT = 0;
 const int LEFT = 180;
 const int STOP = 90;
+// จำนวนการ delay ของ servo
 const int DELAY_SERVO1 = 1000;
 const int DELAY_SERVO2 = 1000;
 
@@ -61,31 +65,35 @@ bool lastState_buttonGetRedPen = false;
 // กำหนดพินสำหรับรีเลย์ที่ควบคุมเครื่องจ่ายเหรียญและระบบตรวจเหรียญ
 const int relayPin3V = 27;
 bool relayState = false;
-const int relayPin12V = 34;
+const int relayPin12V = 14;
 bool relayCoinValidatorState = false;
 
-// ฟังก์ชันสำหรับการนับเหรียญเมื่อมีเหรียญเข้ามา
+// ทำการประกาศฟังชันที่จะทำการเรียกใช้ขึ้นมาก่อน
 void IRAM_ATTR doCounter();
-void updateDisplay();  // ฟังก์ชันอัปเดตหน้าจอแสดงผล
-void refillDisplay();  // ฟังก์ชันแจ้งให้เติมปากกา
-void calculateAmount();  // ฟังก์ชันคำนวณจำนวนเงินจากการนับพัลส์
-void purchasPen(String PenColor);  // ฟังก์ชันจำหน่ายปากกา
-void sendLineNotify(String message, String imageUrl = "");  // ฟังก์ชันส่งแจ้งเตือนไปที่ LINE Notify
-void moveServo(String servoName, int targetDeg, int duration);  // ฟังก์ชันควบคุมการหมุนของเซอร์โวมอเตอร์
-void checkbuttonPurchase();  // ฟังก์ชันตรวจสอบสถานะปุ่ม
-void releaseBluePen();  // ฟังก์ชันจำหน่ายปากกาสีน้ำเงิน
-void releaseRedPen();  // ฟังก์ชันจำหน่ายปากกาสีแดง
+void updateDisplay();                                          // ฟังก์ชันอัปเดตหน้าจอแสดงผล
+void refillDisplay();                                          // ฟังก์ชันแจ้งให้เติมปากกา
+void calculateAmount();                                        // ฟังก์ชันคำนวณจำนวนเงินจากการนับพัลส์
+void purchasPen(String PenColor);                              // ฟังก์ชันจำหน่ายปากกา
+void sendLineNotify(String message, String imageUrl = "");     // ฟังก์ชันส่งแจ้งเตือนไปที่ LINE Notify
+void moveServo(String servoName, int targetDeg, int duration); // ฟังก์ชันควบคุมการหมุนของเซอร์โวมอเตอร์
+void checkbuttonPurchase();                                    // ฟังก์ชันตรวจสอบสถานะปุ่ม
+void releaseBluePen();                                         // ฟังก์ชันจำหน่ายปากกาสีน้ำเงิน
+void releaseRedPen();
+void disconnectCoinValidator();
+void reconnectCoinValidator();
 
 // WiFiManager ใช้สำหรับการจัดการ WiFi
 WiFiManager wm;
-unsigned long connectStartTime;  // ตัวแปรจับเวลาการเชื่อมต่อ WiFi
-const unsigned long CONNECTION_TIMEOUT = 5000;  // กำหนดเวลาการเชื่อมต่อ WiFi (5 วินาที)
+unsigned long connectStartTime;                // ตัวแปรจับเวลาการเชื่อมต่อ WiFi
+const unsigned long CONNECTION_TIMEOUT = 5000; // กำหนดเวลาการเชื่อมต่อ WiFi (5 วินาที)
 
 void setup()
 {
   Serial.begin(115200);
   lcd.begin(16, 2);
   lcd.backlight();
+  pinMode(relayPin12V, OUTPUT);
+  digitalWrite(relayPin12V, LOW);
 
   lcd.setCursor(0, 0);
   lcd.print("System Starting.");
@@ -145,20 +153,21 @@ void setup()
 
   pinMode(relayPin3V, OUTPUT);
   digitalWrite(relayPin3V, HIGH);
-
-  pinMode(relayPin12V, OUTPUT);
-  digitalWrite(relayPin12V, LOW);
+  digitalWrite(relayPin12V, HIGH);
 
   servo1.attach(servoPin1);
   servo2.attach(servoPin2);
 
   pinMode(coinValidatorPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(coinValidatorPin), doCounter, FALLING);
-
   pinMode(buttonGetBluePen, INPUT_PULLUP);
   pinMode(buttonGetRedPen, INPUT_PULLUP);
 
   updateDisplay();
+
+  Blynk.virtualWrite(V5, 1);
+
+  delay(2000);
+  attachInterrupt(digitalPinToInterrupt(coinValidatorPin), doCounter, FALLING);
 }
 
 void loop()
@@ -168,7 +177,6 @@ void loop()
   if (!relayCoinValidatorState)
   {
     unsigned long currentMillisPen = millis();
-
     if (currentMillisPen - previousMillisPen >= intervalPen)
     {
       if (bluePenPurchased > 0 || redPenPurchased > 0)
@@ -222,7 +230,7 @@ void checkbuttonPurchase()
 {
   if (digitalRead(buttonGetBluePen) == LOW && !lastState_buttonGetBluePen)
   {
-    if (currentBluePen != 0)
+    if (amountBluePen != 0)
     {
       lastState_buttonGetBluePen = true;
       purchasPen("blue");
@@ -234,7 +242,7 @@ void checkbuttonPurchase()
   }
   if (digitalRead(buttonGetRedPen) == LOW && !lastState_buttonGetRedPen)
   {
-    if (currentRedPen != 0)
+    if (amountRedPen != 0)
     {
       lastState_buttonGetRedPen = true;
       purchasPen("red");
@@ -362,12 +370,12 @@ void purchasPen(String PenColor)
     {
       releaseBluePen();
       bluePenPurchased += 1;
-      currentBluePen -= 1;
-      if (currentBluePen <= 5)
+      amountBluePen -= 1;
+      if (amountBluePen <= 5)
       {
-        sendLineNotify("\n🔵 ปากกาสีน้ำเงินใกล้จะหมดแล้ว\n\nจำนวนที่เหลือ: " + String(currentBluePen) + " ด้าม");
+        sendLineNotify("\n🔵 ปากกาสีน้ำเงินใกล้จะหมดแล้ว\n\nจำนวนที่เหลือ: " + String(amountBluePen) + " ด้าม");
       }
-      if (currentBluePen == 0)
+      if (amountBluePen == 0)
       {
         sendLineNotify("\n🔵 ปากกาสีน้ำเงินหมดแล้ว\n\nกรุณาเติมปากกา!!");
         refillDisplay();
@@ -377,12 +385,12 @@ void purchasPen(String PenColor)
     {
       releaseRedPen();
       redPenPurchased += 1;
-      currentRedPen -= 1;
-      if (currentRedPen <= 5)
+      amountRedPen -= 1;
+      if (amountRedPen <= 5)
       {
-        sendLineNotify("\n🔴 ปากกาสีแดงใกล้จะหมดแล้ว\n\nจำนวนที่เหลือ: " + String(currentRedPen) + " ด้าม");
+        sendLineNotify("\n🔴 ปากกาสีแดงใกล้จะหมดแล้ว\n\nจำนวนที่เหลือ: " + String(amountRedPen) + " ด้าม");
       }
-      if (currentRedPen == 0)
+      if (amountRedPen == 0)
       {
         sendLineNotify("\n🔴 ปากกาสีแดงหมดแล้ว\n\nกรุณาเติมปากกา!!");
       }
@@ -459,14 +467,9 @@ BLYNK_WRITE(V5)
 {
   if (param.asInt() == 1)
   {
-    if (relayCoinValidatorState)
+    if (!relayCoinValidatorState)
     {
       digitalWrite(relayPin12V, LOW);
-      relayCoinValidatorState = false;
-    }
-    else
-    {
-      digitalWrite(relayPin12V, HIGH);
       relayCoinValidatorState = true;
       lcd.clear();
       lcd.setCursor(5, 0);
@@ -475,7 +478,29 @@ BLYNK_WRITE(V5)
       lcd.print("Shutting Down.");
       delay(2000);
     }
+    else
+    {
+      digitalWrite(relayPin12V, HIGH);
+      relayCoinValidatorState = false;
+      lcd.clear();
+      lcd.setCursor(5, 0);
+      lcd.print("System");
+      lcd.setCursor(2, 1);
+      lcd.print("Starting....");
+      delay(2000);
+      updateDisplay();
+      amountBluePen = 0;
+      amountRedPen = 0;
+    }
   }
+}
+
+void disconnectCoinValidator()
+{
+}
+
+void reconnectCoinValidator()
+{
 }
 
 void releaseBluePen()
@@ -487,9 +512,9 @@ void releaseBluePen()
   moveServo("blue", LEFT, 210);
   moveServo("blue", STOP, 200);
 
-  moveServo("blue", RIGHT, 957);
+  moveServo("blue", RIGHT, 958);
   moveServo("blue", STOP, 200);
-  moveServo("blue", RIGHT, 957);
+  moveServo("blue", RIGHT, 958);
   moveServo("blue", STOP, 0);
 }
 void releaseRedPen()
@@ -501,8 +526,8 @@ void releaseRedPen()
   moveServo("red", LEFT, 210);
   moveServo("red", STOP, 200);
 
-  moveServo("red", RIGHT, 964);
+  moveServo("red", LEFT, 980);
   moveServo("red", STOP, 200);
-  moveServo("red", RIGHT, 964);
+  moveServo("red", LEFT, 980);
   moveServo("red", STOP, 0);
 }
