@@ -30,7 +30,7 @@ const unsigned long debounceDelay = 200;
 volatile int pulseCount = 0;
 volatile int pens = 0;
 const unsigned long calculationDelay = 500;
-const int pricePen = 7; // กำหนดราคาปากกา
+const int pricePen = 8; // กำหนดราคาปากกา
 
 // ตัวแปรที่จะกำหนดจำนวนทั้งหมดที่ปากกาใส่ได้
 int amountBluePen = 10;
@@ -80,7 +80,7 @@ void checkbuttonPurchase();                                    // ฟังก�
 void releaseBluePen();                                         // ฟังก์ชันจำหน่ายปากกาสีน้ำเงิน
 void releaseRedPen();
 void disconnectCoinValidator();
-void reconnectCoinValidator();
+void connectCoinValidator();
 
 // WiFiManager ใช้สำหรับการจัดการ WiFi
 WiFiManager wm;
@@ -92,6 +92,10 @@ void setup()
   Serial.begin(115200);
   lcd.begin(16, 2);
   lcd.backlight();
+
+  pinMode(coinValidatorPin, INPUT_PULLUP);
+  disconnectCoinValidator();
+
   pinMode(relayPin12V, OUTPUT);
   digitalWrite(relayPin12V, LOW);
 
@@ -158,7 +162,6 @@ void setup()
   servo1.attach(servoPin1);
   servo2.attach(servoPin2);
 
-  pinMode(coinValidatorPin, INPUT_PULLUP);
   pinMode(buttonGetBluePen, INPUT_PULLUP);
   pinMode(buttonGetRedPen, INPUT_PULLUP);
 
@@ -167,7 +170,7 @@ void setup()
   Blynk.virtualWrite(V5, 1);
 
   delay(2000);
-  attachInterrupt(digitalPinToInterrupt(coinValidatorPin), doCounter, FALLING);
+  connectCoinValidator();
 }
 
 void loop()
@@ -221,8 +224,8 @@ void loop()
   else
   {
     lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("System Status: Off");
+    lcd.setCursor(2, 0);
+    lcd.print("System: OFF!");
   }
 }
 
@@ -327,7 +330,7 @@ void calculateAmount()
       totalAmount += 5;
       Serial.println("5 บาท");
     }
-    else if (pulseCount > 5)
+    else if (pulseCount >= 5)
     {
       totalAmount += 10;
       Serial.println("10 บาท");
@@ -465,9 +468,9 @@ BLYNK_WRITE(V4)
 }
 BLYNK_WRITE(V5)
 {
-  if (param.asInt() == 1)
+  if (!relayCoinValidatorState)
   {
-    if (!relayCoinValidatorState)
+    if (param.asInt() == 1)
     {
       digitalWrite(relayPin12V, LOW);
       relayCoinValidatorState = true;
@@ -478,7 +481,10 @@ BLYNK_WRITE(V5)
       lcd.print("Shutting Down.");
       delay(2000);
     }
-    else
+  }
+  else
+  {
+    if (param.asInt() == 0)
     {
       digitalWrite(relayPin12V, HIGH);
       relayCoinValidatorState = false;
@@ -497,10 +503,12 @@ BLYNK_WRITE(V5)
 
 void disconnectCoinValidator()
 {
+  detachInterrupt(digitalPinToInterrupt(coinValidatorPin));
 }
 
-void reconnectCoinValidator()
+void connectCoinValidator()
 {
+  attachInterrupt(digitalPinToInterrupt(coinValidatorPin), doCounter, FALLING);
 }
 
 void releaseBluePen()
@@ -526,8 +534,8 @@ void releaseRedPen()
   moveServo("red", LEFT, 210);
   moveServo("red", STOP, 200);
 
-  moveServo("red", LEFT, 980);
+  moveServo("red", LEFT, 985);
   moveServo("red", STOP, 200);
-  moveServo("red", LEFT, 980);
+  moveServo("red", LEFT, 985);
   moveServo("red", STOP, 0);
 }
