@@ -74,7 +74,7 @@ void updateDisplay();                                          // ฟังก�
 void refillDisplay();                                          // ฟังก์ชันแจ้งให้เติมปากกา
 void calculateAmount();                                        // ฟังก์ชันคำนวณจำนวนเงินจากการนับพัลส์
 void purchasPen(String PenColor);                              // ฟังก์ชันจำหน่ายปากกา
-void sendLineNotify(String message, String imageUrl = "");     // ฟังก์ชันส่งแจ้งเตือนไปที่ LINE Notify
+void sendLineNotify(String message, String imageUrl = "");     // ฟังก์ชันส่งแจ้งเตือนไปที่ LINE Notif
 void moveServo(String servoName, int targetDeg, int duration); // ฟังก์ชันควบคุมการหมุนของเซอร์โวมอเตอร์
 void checkbuttonPurchase();                                    // ฟังก์ชันตรวจสอบสถานะปุ่ม
 void releaseBluePen();                                         // ฟังก์ชันจำหน่ายปากกาสีน้ำเงิน
@@ -125,14 +125,14 @@ void setup()
   lcd.print("Connecting..");
   connectStartTime = millis();
 
-  wm.setTimeout(5);
+  wm.setTimeout(30);
 
   if (!wm.autoConnect(WIFI_NAME, WIFI_PASSWORD))
   {
     unsigned long elapsedTime = millis() - connectStartTime;
     if (elapsedTime >= CONNECTION_TIMEOUT)
     {
-      Serial.println("Failed to connect within 5 seconds");
+      Serial.println("Failed to connect within 30 seconds");
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("AP Mode Active");
@@ -325,12 +325,12 @@ void calculateAmount()
       totalAmount += 2;
       Serial.println("2 บาท");
     }
-    else if (pulseCount >= 3 && pulseCount < 6)
+    else if (pulseCount >= 3 && pulseCount < 5)
     {
       totalAmount += 5;
       Serial.println("5 บาท");
     }
-    else if (pulseCount >= 5)
+    else if (pulseCount > 4)
     {
       totalAmount += 10;
       Serial.println("10 บาท");
@@ -480,6 +480,11 @@ BLYNK_WRITE(V5)
       lcd.setCursor(2, 1);
       lcd.print("Shutting Down.");
       delay(2000);
+      totalAmount = 0;
+      pens = 0;
+      disconnectCoinValidator();
+      delay(2000);
+      connectCoinValidator();
     }
   }
   else
@@ -495,8 +500,8 @@ BLYNK_WRITE(V5)
       lcd.print("Starting....");
       delay(2000);
       updateDisplay();
-      amountBluePen = 0;
-      amountRedPen = 0;
+      amountBluePen = 10;
+      amountRedPen = 10;
     }
   }
 }
@@ -520,9 +525,9 @@ void releaseBluePen()
   moveServo("blue", LEFT, 210);
   moveServo("blue", STOP, 200);
 
-  moveServo("blue", RIGHT, 958);
+  moveServo("blue", LEFT, 958);
   moveServo("blue", STOP, 200);
-  moveServo("blue", RIGHT, 958);
+  moveServo("blue", LEFT, 958);
   moveServo("blue", STOP, 0);
 }
 void releaseRedPen()
