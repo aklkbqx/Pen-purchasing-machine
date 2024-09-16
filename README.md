@@ -1,6 +1,5 @@
 <h1>This is Project ESP32 Pen Purchasing Machine </h1>
-<br>
-<br>
+Pen Purchasing Machine | ESP32, Step down 12v,Coin Validator, LCD no I2C,Relay 12V, Relay 5V , LINE Token, BLYNK, PlatformIO, Visual Studio Code
 <br>
 <img width="1567" alt="Screenshot 2567-09-12 at 13 28 09" src="https://github.com/user-attachments/assets/7d01bb1e-367c-4e41-b702-de5b7ce2bf36">
 <br>
