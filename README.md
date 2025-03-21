@@ -1,10 +1,10 @@
 # 🖊️ ESP32 Pen Purchasing Machine
 
-[![PlatformIO](https://img.shields.io/badge/PlatformIO-orange?style=for-the-badge&logo=platformio)](https://platformio.org/)
+[![PlatformIO](https://img.shields.io/badge/IDE-PlatformIO-orange?style=for-the-badge&logo=platformio)](https://platformio.org/)
 [![VSCode](https://img.shields.io/badge/VSCode-blue?style=for-the-badge&logo=visualstudiocode)](https://code.visualstudio.com/)
-[![ESP32](https://img.shields.io/badge/ESP32-red?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
+[![ESP32](https://img.shields.io/badge/Device-ESP32-red?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
 [![BLYNK](https://img.shields.io/badge/BLYNK-pink?style=for-the-badge&logo=blynk)](https://blynk.io/)
-[![LINE](https://img.shields.io/badge/LINE-green?style=for-the-badge&logo=line)](https://developers.line.biz/)
+[![LINE](https://img.shields.io/badge/Notification-LINE-green?style=for-the-badge&logo=line)](https://developers.line.biz/)
 
 ## 📝 Project Overview
 
